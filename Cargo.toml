@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rmcp", "crates/rmcp-macros", "examples/*", "conformance"]
+members = ["crates/rmcp", "crates/rmcp-macros", "examples/*", "conformance", "crates/mcp-gateway-hub"]
 default-members = ["crates/rmcp", "crates/rmcp-macros"]
 resolver = "2"
 

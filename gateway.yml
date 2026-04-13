@@ -1,0 +1,6 @@
+server:
+  host: 127.0.0.1
+  port: 8080
+auth:
+  jwt_secret: "test_secret"
+  require_auth: false

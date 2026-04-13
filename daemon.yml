@@ -1,0 +1,4 @@
+servers:
+  - name: dummy-server
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-everything"]
