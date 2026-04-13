@@ -40,7 +40,7 @@ pub fn create_router(state: AppState) -> Router {
 
     Router::new()
         .route("/v1/daemons", get(list_daemons))
-        .route("/v1/daemons/:id/servers", post(add_server_to_daemon))
+        .route("/v1/daemons/{id}/servers", post(add_server_to_daemon))
         .route("/v1/tools", get(list_tools))
         .route("/v1/tools/call", post(call_tool))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
