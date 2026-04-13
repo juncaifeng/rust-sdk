@@ -1,0 +1,6 @@
+gateway_url: "http://127.0.0.1:50051"
+daemon_id: "mcp-daemon-chrome"
+servers:
+  - name: chrome-devtools
+    command: "npx"
+    args: ["-y", "chrome-devtools-mcp@latest"]
