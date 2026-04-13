@@ -1,3 +1,5 @@
+gateway_url: "http://127.0.0.1:50051"
+daemon_id: "test-daemon-01"
 servers:
   - name: dummy-server
     command: "npx"

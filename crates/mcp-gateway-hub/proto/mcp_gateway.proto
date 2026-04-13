@@ -1,0 +1,51 @@
+syntax = "proto3";
+package mcp.gateway;
+
+service McpGateway {
+  // Daemon registers itself and its tools, then opens a bi-directional stream
+  // Gateway pushes CallToolRequest, Daemon responds with CallToolResponse
+  rpc ConnectDaemon(stream DaemonMessage) returns (stream GatewayMessage);
+}
+
+message DaemonMessage {
+  oneof payload {
+    RegisterRequest register = 1;
+    CallToolResponse call_response = 2;
+  }
+}
+
+message GatewayMessage {
+  oneof payload {
+    RegisterResponse register_ack = 1;
+    CallToolRequest call_request = 2;
+  }
+}
+
+message RegisterRequest {
+  string daemon_id = 1;
+  repeated ToolInfo tools = 2;
+}
+
+message ToolInfo {
+  string name = 1;
+  string description = 2;
+  string input_schema_json = 3;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CallToolRequest {
+  string request_id = 1;
+  string tool_name = 2;
+  string arguments_json = 3; // JSON payload for tool arguments
+}
+
+message CallToolResponse {
+  string request_id = 1;
+  bool success = 2;
+  string result_json = 3; // JSON payload for tool execution result
+  string error_message = 4;
+}

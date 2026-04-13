@@ -22,4 +22,11 @@ jsonwebtoken = "9.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 anyhow = "1.0"
+tonic = "0.12"
+prost = "0.13"
+tokio-stream = "0.1"
+uuid = { version = "1.14", features = ["v4"] }
+
+[build-dependencies]
+tonic-build = "0.12"
 

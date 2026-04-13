@@ -35,6 +35,8 @@ pub struct ClientInfo {
 
 #[derive(Debug, Deserialize)]
 pub struct DaemonConfig {
+    pub gateway_url: String,
+    pub daemon_id: String,
     pub servers: Vec<ServerProcessConfig>,
 }
 

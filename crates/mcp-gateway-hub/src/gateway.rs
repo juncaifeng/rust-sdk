@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use rmcp::model::CallToolRequestParams;
 
-use crate::{config::GatewayConfig, mcp_client::McpClientManager};
+use crate::{config::GatewayConfig, grpc_server::ToolRegistry};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -25,7 +25,7 @@ pub struct Claims {
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<GatewayConfig>,
-    pub mcp_client_manager: McpClientManager,
+    pub tool_registry: ToolRegistry,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -80,7 +80,7 @@ async fn auth_middleware(
 }
 
 async fn list_tools(State(state): State<AppState>) -> impl IntoResponse {
-    let tools = state.mcp_client_manager.list_all_tools().await;
+    let tools = state.tool_registry.get_all_tools().await;
     Json(tools)
 }
 
@@ -106,16 +106,13 @@ async fn call_tool(
 
     info!("User {} calling tool {}", claims.sub, payload.name);
 
-    let mut params = CallToolRequestParams::new(payload.name.clone());
-    if let Some(args) = payload.arguments {
-        if let serde_json::Value::Object(map) = args {
-            params.arguments = Some(map);
-        } else {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-    }
+    let arguments_json = if let Some(args) = payload.arguments {
+        serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string())
+    } else {
+        "{}".to_string()
+    };
 
-    match state.mcp_client_manager.call_tool(params).await {
+    match state.tool_registry.call_remote_tool(payload.name.clone(), arguments_json).await {
         Ok(result) => Ok(Json(result)),
         Err(e) => {
             warn!("Error calling tool {}: {}", payload.name, e);
