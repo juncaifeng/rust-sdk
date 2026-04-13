@@ -33,15 +33,38 @@ impl ToolRegistry {
     pub async fn get_all_tools(&self) -> Vec<serde_json::Value> {
         let tools_map = self.tools.read().await;
         let mut res = Vec::new();
-        for (_, (_, info)) in tools_map.iter() {
+        for (_, (daemon_id, info)) in tools_map.iter() {
             let mut val = serde_json::json!({
                 "name": info.name,
                 "description": info.description,
+                "daemon_id": daemon_id,
             });
             if let Ok(schema) = serde_json::from_str::<serde_json::Value>(&info.input_schema_json) {
                 val.as_object_mut().unwrap().insert("inputSchema".to_string(), schema);
             }
             res.push(val);
+        }
+        res
+    }
+
+    pub async fn get_all_daemons(&self) -> Vec<serde_json::Value> {
+        let daemons_map = self.daemons.read().await;
+        let tools_map = self.tools.read().await;
+        
+        let mut res = Vec::new();
+        for daemon_id in daemons_map.keys() {
+            let mut tools = Vec::new();
+            for (_, (d_id, info)) in tools_map.iter() {
+                if d_id == daemon_id {
+                    tools.push(info.name.clone());
+                }
+            }
+            res.push(serde_json::json!({
+                "id": daemon_id,
+                "status": "connected",
+                "tools_count": tools.len(),
+                "tools": tools,
+            }));
         }
         res
     }

@@ -1,0 +1,6 @@
+gateway_url: "http://127.0.0.1:50051"
+daemon_id: "mcp-daemon-git"
+servers:
+  - name: dummy-server-2
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-everything"]

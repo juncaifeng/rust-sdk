@@ -1,0 +1,6 @@
+gateway_url: "http://127.0.0.1:50051"
+daemon_id: "mcp-daemon-filesystem"
+servers:
+  - name: fs-server
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]

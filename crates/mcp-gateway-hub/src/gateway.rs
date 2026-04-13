@@ -29,10 +29,21 @@ pub struct AppState {
 }
 
 pub fn create_router(state: AppState) -> Router {
+    // Adding CORS for frontend - Allow specific preview origin as well as localhost
+    use tower_http::cors::{Any, CorsLayer};
+    use axum::http::Method;
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(Any);
+
     Router::new()
+        .route("/v1/daemons", get(list_daemons))
         .route("/v1/tools", get(list_tools))
         .route("/v1/tools/call", post(call_tool))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -77,6 +88,11 @@ async fn auth_middleware(
 
     req.extensions_mut().insert(token_data.claims);
     Ok(next.run(req).await)
+}
+
+async fn list_daemons(State(state): State<AppState>) -> impl IntoResponse {
+    let daemons = state.tool_registry.get_all_daemons().await;
+    Json(daemons)
 }
 
 async fn list_tools(State(state): State<AppState>) -> impl IntoResponse {

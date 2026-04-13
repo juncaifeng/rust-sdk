@@ -23,9 +23,15 @@ async fn main() -> anyhow::Result<()> {
         "all".to_string() // Default to running both for testing convenience
     };
 
+    let daemon_config_path = if args.len() > 4 && args[3] == "--config" {
+        args[4].clone()
+    } else {
+        "daemon.yml".to_string()
+    };
+
     if mode == "daemon" || mode == "all" {
         info!("Starting MCP Daemon...");
-        let daemon_config = config::load_daemon_config("daemon.yml").unwrap_or_else(|e| {
+        let daemon_config = config::load_daemon_config(&daemon_config_path).unwrap_or_else(|e| {
             warn!("Could not load daemon.yml, using empty config: {}", e);
             config::DaemonConfig { gateway_url: "http://127.0.0.1:50051".to_string(), daemon_id: "default-daemon".to_string(), servers: vec![] }
         });
