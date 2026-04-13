@@ -40,6 +40,7 @@ pub fn create_router(state: AppState) -> Router {
 
     Router::new()
         .route("/v1/daemons", get(list_daemons))
+        .route("/v1/daemons/:id/servers", post(add_server_to_daemon))
         .route("/v1/tools", get(list_tools))
         .route("/v1/tools/call", post(call_tool))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
@@ -98,6 +99,32 @@ async fn list_daemons(State(state): State<AppState>) -> impl IntoResponse {
 async fn list_tools(State(state): State<AppState>) -> impl IntoResponse {
     let tools = state.tool_registry.get_all_tools().await;
     Json(tools)
+}
+
+#[derive(serde::Deserialize)]
+struct AddServerPayload {
+    name: String,
+    command: String,
+    args: Vec<String>,
+    #[serde(default)]
+    env: std::collections::HashMap<String, String>,
+}
+
+async fn add_server_to_daemon(
+    State(state): State<AppState>,
+    axum::extract::Path(daemon_id): axum::extract::Path<String>,
+    Json(payload): Json<AddServerPayload>,
+) -> impl IntoResponse {
+    match state.tool_registry.start_remote_server(
+        daemon_id,
+        payload.name,
+        payload.command,
+        payload.args,
+        payload.env,
+    ).await {
+        Ok(_) => Json(serde_json::json!({"success": true})).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": e.to_string()}))).into_response(),
+    }
 }
 
 #[derive(Deserialize)]

@@ -99,6 +99,64 @@ impl DaemonManager {
                         warn!("Failed to send CallToolResponse to gateway: {}", e);
                     }
                 });
+            } else if let Some(crate::pb::pb::gateway_message::Payload::StartServer(req)) = msg.payload {
+                info!("Received start server request: {}", req.server_name);
+                let mcp_manager = mcp_client_manager.clone();
+                let tx_clone = tx.clone();
+                let daemon_id_clone = daemon_id.clone();
+                
+                tokio::spawn(async move {
+                    let mut cmd = Command::new(&req.command);
+                    cmd.args(&req.args);
+                    for (k, v) in &req.env {
+                        cmd.env(k, v);
+                    }
+                    
+                    let (success, message) = match TokioChildProcess::new(cmd) {
+                        Ok(process) => {
+                            match mcp_manager.add_client(process).await {
+                                Ok(_) => {
+                                    // Resend RegisterRequest with all tools
+                                    let tools = mcp_manager.list_all_tools().await;
+                                    let mut tool_infos = Vec::new();
+                                    for t in tools {
+                                        let schema_json = serde_json::to_string(&t.input_schema).unwrap_or_else(|_| "{}".to_string());
+                                        tool_infos.push(ToolInfo {
+                                            name: t.name.to_string(),
+                                            description: t.description.unwrap_or_default().to_string(),
+                                            input_schema_json: schema_json,
+                                        });
+                                    }
+                                    
+                                    let reg_msg = DaemonMessage {
+                                        payload: Some(Payload::Register(RegisterRequest {
+                                            daemon_id: daemon_id_clone,
+                                            tools: tool_infos,
+                                        })),
+                                    };
+                                    let _ = tx_clone.send(reg_msg).await;
+                                    
+                                    (true, "Server started and registered successfully".to_string())
+                                },
+                                Err(e) => (false, format!("Failed to add MCP client: {}", e)),
+                            }
+                        },
+                        Err(e) => (false, format!("Failed to spawn process: {}", e)),
+                    };
+                    
+                    let resp_msg = DaemonMessage {
+                        payload: Some(Payload::StartServerResponse(crate::pb::pb::StartServerResponse {
+                            request_id: req.request_id,
+                            server_name: req.server_name,
+                            success,
+                            message,
+                        })),
+                    };
+                    
+                    if let Err(e) = tx_clone.send(resp_msg).await {
+                        warn!("Failed to send StartServerResponse to gateway: {}", e);
+                    }
+                });
             } else if let Some(crate::pb::pb::gateway_message::Payload::RegisterAck(ack)) = msg.payload {
                 info!("Gateway Registration ACK: success={}, message={}", ack.success, ack.message);
             }

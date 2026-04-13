@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Terminal, Activity, ArrowRight, Box, X, Play } from 'lucide-react';
+import { Server, Terminal, Activity, ArrowRight, Box, X, Play, Plus, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Daemon {
@@ -33,6 +33,14 @@ export default function Dashboard() {
   const [execResult, setExecResult] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
+  // Add Server Modal State
+  const [selectedDaemon, setSelectedDaemon] = useState<Daemon | null>(null);
+  const [newServerName, setNewServerName] = useState<string>('sqlite-server');
+  const [newServerCmd, setNewServerCmd] = useState<string>('npx');
+  const [newServerArgs, setNewServerArgs] = useState<string>('-y, @modelcontextprotocol/server-sqlite, test.db');
+  const [isAddingServer, setIsAddingServer] = useState(false);
+  const [addServerError, setAddServerError] = useState<string | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -55,6 +63,41 @@ export default function Dashboard() {
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleAddServer = async () => {
+    if (!selectedDaemon) return;
+    setIsAddingServer(true);
+    setAddServerError(null);
+
+    try {
+      const argsArray = newServerArgs.split(',').map(a => a.trim()).filter(a => a);
+      const res = await fetch(`${API_BASE}/daemons/${selectedDaemon.id}/servers`, {
+        method: 'POST',
+        headers: {
+          ...HEADERS,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newServerName,
+          command: newServerCmd,
+          args: argsArray,
+          env: {}
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to add server');
+      }
+      
+      // Success, close modal and wait for polling to update the UI
+      setSelectedDaemon(null);
+    } catch (err: any) {
+      setAddServerError(`Error: ${err.message || err.toString()}`);
+    } finally {
+      setIsAddingServer(false);
+    }
+  };
 
   const handleExecute = async () => {
     if (!selectedTool) return;
@@ -147,7 +190,7 @@ export default function Dashboard() {
             {activeTab === 'daemons' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {daemons.map(d => (
-                  <div key={d.id} className="group p-6 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-all">
+                  <div key={d.id} className="group p-6 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-emerald-400/10 text-emerald-400">
@@ -162,10 +205,16 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="pt-4 border-t border-zinc-800/50">
-                      <p className="text-sm text-zinc-400">
+                    <div className="pt-4 border-t border-zinc-800/50 flex-1">
+                      <p className="text-sm text-zinc-400 mb-4">
                         <span className="text-zinc-100 font-medium">{d.tools_count}</span> tools mounted
                       </p>
+                      <button 
+                        onClick={() => setSelectedDaemon(d)}
+                        className="w-full py-2 flex items-center justify-center gap-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 transition-colors mt-auto"
+                      >
+                        <Plus className="w-4 h-4" /> Add MCP Server
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -205,6 +254,93 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* Add Server Modal */}
+      {selectedDaemon && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111] border border-zinc-800 rounded-xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
+              <h2 className="font-semibold text-zinc-100 flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-emerald-400" />
+                Add MCP Server to <span className="text-zinc-400">{selectedDaemon.id}</span>
+              </h2>
+              <button 
+                onClick={() => setSelectedDaemon(null)} 
+                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 block">
+                  Server Name
+                </label>
+                <input
+                  type="text"
+                  value={newServerName}
+                  onChange={(e) => setNewServerName(e.target.value)}
+                  className="w-full bg-black border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  placeholder="e.g. sqlite-server"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 block">
+                  Command
+                </label>
+                <input
+                  type="text"
+                  value={newServerCmd}
+                  onChange={(e) => setNewServerCmd(e.target.value)}
+                  className="w-full bg-black border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  placeholder="e.g. npx"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 block">
+                  Arguments (comma separated)
+                </label>
+                <input
+                  type="text"
+                  value={newServerArgs}
+                  onChange={(e) => setNewServerArgs(e.target.value)}
+                  className="w-full bg-black border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
+                  placeholder="e.g. -y, @modelcontextprotocol/server-sqlite, test.db"
+                />
+              </div>
+
+              {addServerError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md text-red-400 text-sm">
+                  {addServerError}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setSelectedDaemon(null)} 
+                className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddServer}
+                disabled={isAddingServer}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isAddingServer ? (
+                  <Activity className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                {isAddingServer ? 'Deploying...' : 'Deploy Server'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Execution Modal */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">

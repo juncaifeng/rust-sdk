@@ -11,6 +11,7 @@ message DaemonMessage {
   oneof payload {
     RegisterRequest register = 1;
     CallToolResponse call_response = 2;
+    StartServerResponse start_server_response = 3;
   }
 }
 
@@ -18,6 +19,7 @@ message GatewayMessage {
   oneof payload {
     RegisterResponse register_ack = 1;
     CallToolRequest call_request = 2;
+    StartServerRequest start_server = 3;
   }
 }
 
@@ -48,4 +50,19 @@ message CallToolResponse {
   bool success = 2;
   string result_json = 3; // JSON payload for tool execution result
   string error_message = 4;
+}
+
+message StartServerRequest {
+  string request_id = 1;
+  string server_name = 2;
+  string command = 3;
+  repeated string args = 4;
+  map<string, string> env = 5;
+}
+
+message StartServerResponse {
+  string request_id = 1;
+  string server_name = 2;
+  bool success = 3;
+  string message = 4;
 }

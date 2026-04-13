@@ -19,6 +19,8 @@ pub struct ToolRegistry {
     pub daemons: Arc<RwLock<HashMap<String, DaemonSender>>>,
     // request_id -> oneshot sender for waiting responses
     pub pending_calls: Arc<RwLock<HashMap<String, ResponseChannel>>>,
+    // request_id -> oneshot sender for StartServerResponse
+    pub pending_starts: Arc<RwLock<HashMap<String, oneshot::Sender<Result<crate::pb::pb::StartServerResponse, Status>>>>>,
 }
 
 impl ToolRegistry {
@@ -27,6 +29,7 @@ impl ToolRegistry {
             tools: Arc::new(RwLock::new(HashMap::new())),
             daemons: Arc::new(RwLock::new(HashMap::new())),
             pending_calls: Arc::new(RwLock::new(HashMap::new())),
+            pending_starts: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -119,6 +122,53 @@ impl ToolRegistry {
             Err(_) => Err(anyhow::anyhow!("Timeout waiting for daemon response")),
         }
     }
+
+    pub async fn start_remote_server(
+        &self,
+        daemon_id: String,
+        server_name: String,
+        command: String,
+        args: Vec<String>,
+        env: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        let sender = {
+            let daemons_map = self.daemons.read().await;
+            daemons_map.get(&daemon_id).cloned()
+        };
+        let sender = sender.ok_or_else(|| anyhow::anyhow!("Daemon {} disconnected", daemon_id))?;
+
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = oneshot::channel();
+        self.pending_starts.write().await.insert(request_id.clone(), tx);
+
+        let req = GatewayMessage {
+            payload: Some(GatewayPayload::StartServer(crate::pb::pb::StartServerRequest {
+                request_id: request_id.clone(),
+                server_name,
+                command,
+                args,
+                env,
+            })),
+        };
+
+        sender.send(Ok(req)).await.map_err(|e| anyhow::anyhow!("Failed to send StartServer: {}", e))?;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(30), rx).await;
+        self.pending_starts.write().await.remove(&request_id);
+
+        match result {
+            Ok(Ok(Ok(resp))) => {
+                if resp.success {
+                    Ok(())
+                } else {
+                    Err(anyhow::anyhow!("Server start failed: {}", resp.message))
+                }
+            }
+            Ok(Ok(Err(s))) => Err(anyhow::anyhow!("gRPC error: {}", s)),
+            Ok(Err(_)) => Err(anyhow::anyhow!("Internal channel closed")),
+            Err(_) => Err(anyhow::anyhow!("Timeout waiting for daemon response")),
+        }
+    }
 }
 
 pub struct GatewayGrpcService {
@@ -175,6 +225,13 @@ impl McpGateway for GatewayGrpcService {
                             let _ = chan.send(Ok(resp));
                         } else {
                             warn!("Received response for unknown request_id: {}", resp.request_id);
+                        }
+                    }
+                    Some(crate::pb::pb::daemon_message::Payload::StartServerResponse(resp)) => {
+                        if let Some(chan) = registry.pending_starts.write().await.remove(&resp.request_id) {
+                            let _ = chan.send(Ok(resp));
+                        } else {
+                            warn!("Received StartServerResponse for unknown request_id: {}", resp.request_id);
                         }
                     }
                     None => {}
