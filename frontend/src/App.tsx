@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, Terminal, Activity, ArrowRight, Box, X, Play, Plus, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,18 +41,31 @@ export default function Dashboard() {
   const [isAddingServer, setIsAddingServer] = useState(false);
   const [addServerError, setAddServerError] = useState<string | null>(null);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const [dRes, tRes] = await Promise.all([
         fetch(`${API_BASE}/daemons`, { headers: HEADERS }),
         fetch(`${API_BASE}/tools`, { headers: HEADERS })
       ]);
       
-      if (dRes.ok) setDaemons(await dRes.json());
-      if (tRes.ok) setTools(await tRes.json());
-    } catch (e) {
+      if (dRes.ok) {
+        setDaemons(await dRes.json());
+      } else {
+        setFetchError(`Daemons HTTP ${dRes.status} ${await dRes.text()}`);
+      }
+      
+      if (tRes.ok) {
+        setTools(await tRes.json());
+      } else {
+        setFetchError(`Tools HTTP ${tRes.status} ${await tRes.text()}`);
+      }
+    } catch (e: any) {
       console.error('Failed to fetch:', e);
+      setFetchError(`Fetch error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -181,6 +194,12 @@ export default function Dashboard() {
         </div>
 
         {/* Content */}
+        {fetchError && (
+          <div className="p-4 mb-8 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 font-medium">
+            Error loading data: {fetchError}
+          </div>
+        )}
+        
         {loading && daemons.length === 0 ? (
           <div className="flex justify-center py-20 text-zinc-500">
             <Activity className="w-6 h-6 animate-pulse" />
